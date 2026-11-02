@@ -1,0 +1,17 @@
+Photo Upscaler
+Copyright (c) 2026 yayacrypto
+
+This project uses the following third-party AI models and libraries:
+
+ESRGAN super-resolution models (slim and medium variants, 2x/3x/4x)
+- Source packages: @upscalerjs/esrgan-slim and @upscalerjs/esrgan-medium
+  (https://github.com/thekevinscott/UpscalerJS), MIT License
+- Architecture based on Real-ESRGAN by Xintao Wang and contributors
+  (https://github.com/xinntao/Real-ESRGAN), BSD 3-Clause License
+- Weights loaded at runtime from the jsDelivr CDN
+
+TensorFlow.js
+- https://www.tensorflow.org/js, Apache License 2.0
+
+The MIT license in LICENSE covers only this repository's own code, not the
+model weights or the TensorFlow.js library.
