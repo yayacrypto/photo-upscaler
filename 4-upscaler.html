@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Upscaler - enlarge small photos with AI, in your browser</title>
+<meta name="description" content="Enlarge small or blurry photos with a real AI model that runs on your device. No account, no upload, no paywall.">
+<style>
+:root {
+  --bg: #12101a;
+  --panel: #1a1726;
+  --panel-2: #221e33;
+  --text: #efeaf7;
+  --muted: #aba2c4;
+  --accent: #a78bfa;
+  --accent-2: #f0b25c;
+  --ok: #5fd6a0;
+  --border: #342e4a;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--accent-2); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.hidden { display: none !important; }
+
+.site-header { border-bottom: 1px solid var(--border); padding: 22px 0; }
+.header-inner { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { display: flex; gap: 14px; align-items: center; }
+.brand-mark {
+  font-size: 26px; width: 52px; height: 52px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 14px; color: #1c1030;
+}
+h1 { font-size: 22px; margin: 0; }
+.tagline { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.privacy-note { margin: 0; color: var(--ok); font-size: 13px; }
+
+.model-status {
+  display: flex; gap: 14px; align-items: center;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px; margin: 24px 0;
+}
+.model-status.error { border-color: #b3415a; }
+.model-status-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.model-status-text span { color: var(--muted); font-size: 13.5px; }
+.spinner {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress { height: 7px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+#progress-fill { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s; }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px; margin-bottom: 24px;
+}
+.panel h2 { margin: 0 0 14px; font-size: 17px; }
+
+.dropzone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 54px 20px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.dropzone:hover, .dropzone:focus-visible, .dropzone.dragover {
+  border-color: var(--accent); background: rgba(167,139,250,.07); outline: none;
+}
+.drop-title { font-size: 17px; font-weight: 600; margin: 0 0 8px; }
+.drop-hint { color: var(--muted); font-size: 13.5px; margin: 0; }
+
+.result-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.badge {
+  font-size: 12px; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 99px; padding: 3px 10px;
+}
+
+.compare {
+  position: relative; margin: 8px 0 18px; border-radius: 10px; overflow: hidden;
+  background:
+    linear-gradient(45deg, #2c2742 25%, transparent 25%, transparent 75%, #2c2742 75%),
+    linear-gradient(45deg, #2c2742 25%, #221e33 25%, #221e33 75%, #2c2742 75%);
+  background-size: 24px 24px; background-position: 0 0, 12px 12px;
+  user-select: none;
+}
+.compare img, .compare canvas { display: block; width: 100%; height: auto; }
+.compare > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.after-wrap { position: absolute; inset: 0; overflow: hidden; }
+.after-wrap canvas { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.compare #slider {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: ew-resize; margin: 0;
+}
+.slider-line {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 3px;
+  background: var(--accent); pointer-events: none;
+  box-shadow: 0 0 8px rgba(0,0,0,.6);
+}
+.slider-line::after {
+  content: "\21C4"; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: var(--accent); color: #1c1030; font-weight: 700;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 15px;
+}
+
+.options { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.bg-options { border: 0; padding: 0; margin: 0; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.bg-options legend { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.opt { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
+.opt input[type="color"] { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: none; padding: 0; }
+
+.actions { display: flex; gap: 10px; }
+.btn {
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+  border-radius: 9px; padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: 0; color: #1c1030; }
+.btn.ghost { background: transparent; color: var(--muted); }
+
+.notes { margin: 4px 0 34px; }
+.notes h2 { font-size: 15px; color: var(--muted); }
+.notes ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; }
+.notes li { margin-bottom: 4px; }
+
+.site-footer { border-top: 1px solid var(--border); padding: 18px 0; color: var(--muted); font-size: 13px; }
+.site-footer p { margin: 0; }
+
+.setup-body { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.setup-body img { max-width: 260px; width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+.setup-controls { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 16px; }
+.fine-print { color: var(--muted); font-size: 12.5px; margin: 0; }
+.compare { background: #16121f; }
+
+.cmp-label {
+  position: absolute; top: 10px; z-index: 3;
+  background: rgba(10,8,16,.72); color: #fff;
+  font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  padding: 4px 10px; border-radius: 999px; pointer-events: none;
+}
+.cmp-before { left: 10px; }
+.cmp-after { right: 10px; }
+.compare { margin-inline: auto; }
+
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">&#128269;</span>
+      <div>
+        <h1>Photo Upscaler</h1>
+        <p class="tagline">Enlarge small photos and improve their clarity with AI - on your device, not a server.</p>
+      </div>
+    </div>
+    <p class="privacy-note">Your photos never leave this page.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="drop-section" class="panel" aria-labelledby="drop-heading">
+    <h2 id="drop-heading" class="visually-hidden">Choose a photo</h2>
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Choose or drop a photo">
+      <p class="drop-title">Drop a photo here, click to choose, or paste from clipboard</p>
+      <p class="drop-hint">JPG or PNG, up to 1600px on the long side. Processed entirely on your device.</p>
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+    </div>
+  </section>
+
+  <section id="setup-section" class="panel hidden" aria-labelledby="setup-heading">
+    <div class="result-head">
+      <h2 id="setup-heading">Upscale this photo</h2>
+      <span id="input-badge" class="badge"></span>
+    </div>
+    <div class="setup-body">
+      <img id="img-preview" alt="Chosen photo">
+      <div class="setup-controls">
+        <fieldset class="bg-options">
+          <legend>Scale</legend>
+          <label class="opt"><input type="radio" name="scale" value="2" checked> 2x sharper</label>
+          <label class="opt"><input type="radio" name="scale" value="4"> 4x bigger</label>
+        </fieldset>
+        <fieldset class="bg-options">
+          <legend>Quality</legend>
+          <label class="opt"><input type="radio" name="quality" value="fast" checked> Fast (best for phones)</label>
+          <label class="opt"><input type="radio" name="quality" value="hq"> High quality (slower)</label>
+        </fieldset>
+        <div class="actions">
+          <button id="start" class="btn primary" type="button">Upscale</button>
+          <button id="change-photo" class="btn ghost" type="button">Change photo</button>
+        </div>
+        <p class="fine-print" id="est-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="work-status" class="model-status hidden" role="status">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="model-status-text">
+      <strong id="work-status-title">Preparing</strong>
+      <span id="work-status-detail"></span>
+      <div class="progress" aria-hidden="true"><span id="progress-fill"></span></div>
+    </div>
+  </section>
+
+  <section id="result-section" class="panel hidden" aria-labelledby="result-heading">
+    <div class="result-head">
+      <h2 id="result-heading">Result</h2>
+      <span id="engine-badge" class="badge"></span>
+    </div>
+
+    <div class="compare" id="compare">
+      <img id="img-before" alt="Original photo">
+      <div class="after-wrap" id="after-wrap">
+        <img id="img-after" alt="Upscaled photo">
+      </div>
+      <input id="slider" type="range" min="0" max="100" value="50" aria-label="Compare before and after">
+      <div class="slider-line" aria-hidden="true"></div>
+      <span class="cmp-label cmp-before" aria-hidden="true">Before</span>
+      <span class="cmp-label cmp-after" aria-hidden="true">After</span>
+    </div>
+    <p class="fine-print">Slide to compare. Left: original stretched to the same size. Right: AI result.</p>
+
+    <div class="options">
+      <span id="result-badge" class="badge"></span>
+      <div class="actions">
+        <button id="download" class="btn primary" type="button">Download PNG</button>
+        <button id="new-photo" class="btn ghost" type="button">New photo</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="notes">
+    <h2>Good to know</h2>
+    <ul>
+      <li>The AI model (Real-ESRGAN, MIT licensed) runs fully on your device. Photos are never uploaded.</li>
+      <li>It makes small photos bigger and cleaner-looking by inventing plausible detail. It cannot recover true detail that was lost from the original.</li>
+      <li id="download-note">First use downloads the AI model and its runtime (a few MB). Your browser caches them, so later uses are faster.</li>
+      <li>Fastest in Chrome or Edge (uses your GPU when available, CPU otherwise). Large photos take longer.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Made by <a href="https://github.com/yayacrypto">yayacrypto</a>. Free to use, MIT licensed code. Model: Real-ESRGAN (MIT) by Xintao Wang et al., browser port by UpscalerJS (MIT).</p>
+  </div>
+</footer>
+
+<script type="module">
+import * as tf from "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.1.0/+esm";
+
+const els = {
+  dropSection: document.getElementById("drop-section"),
+  dropzone: document.getElementById("dropzone"),
+  fileInput: document.getElementById("file-input"),
+  setupSection: document.getElementById("setup-section"),
+  imgPreview: document.getElementById("img-preview"),
+  inputBadge: document.getElementById("input-badge"),
+  estNote: document.getElementById("est-note"),
+  start: document.getElementById("start"),
+  changePhoto: document.getElementById("change-photo"),
+  workStatus: document.getElementById("work-status"),
+  workTitle: document.getElementById("work-status-title"),
+  workDetail: document.getElementById("work-status-detail"),
+  progressFill: document.getElementById("progress-fill"),
+  resultSection: document.getElementById("result-section"),
+  engineBadge: document.getElementById("engine-badge"),
+  compare: document.getElementById("compare"),
+  afterWrap: document.getElementById("after-wrap"),
+  imgBefore: document.getElementById("img-before"),
+  imgAfter: document.getElementById("img-after"),
+  slider: document.getElementById("slider"),
+  sliderLine: document.querySelector(".slider-line"),
+  resultBadge: document.getElementById("result-badge"),
+  download: document.getElementById("download"),
+  newPhoto: document.getElementById("new-photo"),
+};
+
+const MODEL_URLS = {
+  fast: {
+    "2": "https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-slim@1.0.0/models/x2/model.json",
+    "4": "https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-slim@1.0.0/models/x4/model.json",
+  },
+  hq: {
+    "2": "https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-medium@1.0.0/models/x2/model.json",
+    "4": "https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-medium@1.0.0/models/x4/model.json",
+  },
+};
+const loadedModels = new Map();
+async function getModel(quality, scale) {
+  const key = quality + "-" + scale;
+  if (!loadedModels.has(key)) loadedModels.set(key, tf.loadLayersModel(MODEL_URLS[quality][scale]));
+  return loadedModels.get(key);
+}
+const TILE = 96, PAD = 16;
+const MAX_SIDE = 1600;
+let objectUrl = null;
+let srcImg = null;        // HTMLImageElement (original)
+let resultDataUrl = null; // upscaled PNG data URL
+let busy = false;
+
+function setProgress(f) {
+  els.progressFill.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + "%";
+}
+function showWork(title, detail) {
+  els.workStatus.classList.remove("hidden", "error");
+  els.workTitle.textContent = title;
+  els.workDetail.textContent = detail;
+}
+function showError(msg) {
+  els.workStatus.classList.remove("hidden");
+  els.workStatus.classList.add("error");
+  els.workTitle.textContent = "Something went wrong";
+  els.workDetail.textContent = msg;
+}
+
+function acceptFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    if (Math.max(img.naturalWidth, img.naturalHeight) > MAX_SIDE) {
+      showError(`This photo is ${img.naturalWidth}x${img.naturalHeight}. Please use one up to ${MAX_SIDE}px on the long side - bigger inputs get very slow in a browser.`);
+      return;
+    }
+    srcImg = img;
+    els.imgPreview.src = objectUrl;
+    els.inputBadge.textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
+    els.estNote.textContent = "First run downloads the AI model (a few MB, cached after). Processing time depends on your device - seconds on a GPU, longer on CPU.";
+    els.dropSection.classList.add("hidden");
+    els.resultSection.classList.add("hidden");
+    els.workStatus.classList.add("hidden");
+    els.setupSection.classList.remove("hidden");
+  };
+  img.onerror = () => showError("Could not read that image file.");
+  img.src = objectUrl;
+}
+
+els.dropzone.addEventListener("click", () => els.fileInput.click());
+els.dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") els.fileInput.click(); });
+els.fileInput.addEventListener("change", () => acceptFile(els.fileInput.files[0]));
+["dragover", "dragenter"].forEach((ev) => els.dropzone.addEventListener(ev, (e) => { e.preventDefault(); els.dropzone.classList.add("dragover"); }));
+["dragleave", "drop"].forEach((ev) => els.dropzone.addEventListener(ev, (e) => { e.preventDefault(); els.dropzone.classList.remove("dragover"); }));
+els.dropzone.addEventListener("drop", (e) => acceptFile(e.dataTransfer.files[0]));
+window.addEventListener("paste", (e) => {
+  const f = [...(e.clipboardData?.files || [])][0];
+  if (f) acceptFile(f);
+});
+
+els.changePhoto.addEventListener("click", reset);
+els.newPhoto.addEventListener("click", reset);
+function reset() {
+  els.setupSection.classList.add("hidden");
+  els.resultSection.classList.add("hidden");
+  els.workStatus.classList.add("hidden");
+  els.dropSection.classList.remove("hidden");
+  srcImg = null; resultDataUrl = null;
+  els.fileInput.value = "";
+}
+
+els.start.addEventListener("click", async () => {
+  if (busy || !srcImg) return;
+  busy = true;
+  const scale = Number(document.querySelector('input[name="scale"]:checked').value);
+  const quality = document.querySelector('input[name="quality"]:checked').value;
+  try {
+    els.setupSection.classList.add("hidden");
+    showWork("Loading the AI model", "First run downloads a few MB; cached by your browser afterwards.");
+    setProgress(0.02);
+    const t0 = performance.now();
+    await tf.ready();
+    const model = await getModel(quality, String(scale));
+
+    const W = srcImg.naturalWidth, H = srcImg.naturalHeight;
+    const srcCanvas = document.createElement("canvas");
+    srcCanvas.width = W; srcCanvas.height = H;
+    srcCanvas.getContext("2d").drawImage(srcImg, 0, 0);
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = W * scale; outCanvas.height = H * scale;
+    const outCtx = outCanvas.getContext("2d");
+    const tileCanvas = document.createElement("canvas");
+
+    const xs = [], ys = [];
+    for (let x = 0; x < W; x += TILE) xs.push(x);
+    for (let y = 0; y < H; y += TILE) ys.push(y);
+    const total = xs.length * ys.length;
+    let doneTiles = 0;
+
+    showWork("Upscaling", "The model is enhancing your photo patch by patch.");
+    for (const y of ys) {
+      for (const x of xs) {
+        const cw = Math.min(TILE, W - x), ch = Math.min(TILE, H - y);
+        const sx = Math.max(0, x - PAD), sy = Math.max(0, y - PAD);
+        const ex = Math.min(W, x + cw + PAD), ey = Math.min(H, y + ch + PAD);
+        const pw = ex - sx, ph = ey - sy;
+        const res = tf.tidy(() => {
+          const patch = tf.browser.fromPixels(srcCanvas, 3)
+            .slice([sy, sx, 0], [ph, pw, 3])
+            .toFloat().div(255).expandDims(0);
+          const pred = model.predict(patch);
+          return pred.squeeze().clipByValue(0, 1).mul(255).toInt();
+        });
+        const px0 = (x - sx) * scale, py0 = (y - sy) * scale;
+        const cx = cw * scale, cy = ch * scale;
+        const center = res.slice([py0, px0, 0], [cy, cx, 3]);
+        res.dispose();
+        tileCanvas.width = cx; tileCanvas.height = cy;
+        await tf.browser.toPixels(center, tileCanvas);
+        center.dispose();
+        outCtx.drawImage(tileCanvas, x * scale, y * scale);
+        doneTiles++;
+        setProgress(0.05 + (doneTiles / total) * 0.93);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    resultDataUrl = outCanvas.toDataURL("image/png");
+    setProgress(1);
+    const secs = Math.round((performance.now() - t0) / 1000);
+    els.imgBefore.src = objectUrl;
+    els.imgAfter.src = resultDataUrl;
+    els.engineBadge.textContent = `${scale}x Real-ESRGAN ${quality === 'hq' ? 'high quality' : 'fast'}`;
+    els.resultBadge.textContent = `${W}x${H} -> ${outCanvas.width}x${outCanvas.height} in ${secs}s`;
+    els.workStatus.classList.add("hidden");
+    els.compare.style.maxWidth = outCanvas.width + "px";
+    els.resultSection.classList.remove("hidden");
+    requestAnimationFrame(syncCompareHeight);
+    window.__UPSCALER_DONE__ = true;
+  } catch (err) {
+    console.error(err);
+    showError("Upscaling failed. Try a smaller photo, or a browser with WebGL (Chrome or Edge).");
+  } finally {
+    busy = false;
+  }
+});
+
+function syncCompareHeight() {
+  // size the compare box to the result image aspect
+  const w = els.imgAfter.naturalWidth, h = els.imgAfter.naturalHeight;
+  if (w && h) els.compare.style.aspectRatio = `${w} / ${h}`;
+  els.imgBefore.style.width = "100%";
+  els.imgBefore.style.height = "100%";
+  els.imgBefore.style.objectFit = "cover";
+  els.imgAfter.style.width = "100%";
+  els.imgAfter.style.height = "100%";
+  els.imgAfter.style.objectFit = "cover";
+}
+
+function updateSlider() {
+  const pct = Number(els.slider.value);
+  els.afterWrap.style.clipPath = `inset(0 0 0 ${pct}%)`;
+  els.sliderLine.style.left = pct + "%";
+}
+els.slider.addEventListener("input", updateSlider);
+updateSlider();
+
+els.download.addEventListener("click", () => {
+  if (!resultDataUrl) return;
+  const a = document.createElement("a");
+  a.href = resultDataUrl;
+  a.download = "upscaled.png";
+  a.click();
+});
+
+</script>
+</body>
+</html>
